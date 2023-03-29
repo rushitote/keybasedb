@@ -6,16 +6,15 @@ import (
 	"time"
 )
 
-// TODO: make a map of mutexes for each key
-
 type Node struct {
-	MList   *MemberList
-	Config  *Config
-	Info    *NodeInfo
-	Engine  *Engine
-	Router  *Router
-	opsChan map[string]chan []byte
-	mu      sync.Mutex
+	MList    *MemberList
+	Config   *Config
+	Info     *NodeInfo
+	Engine   *Engine
+	Router   *Router
+	opsChan  map[string]chan []byte
+	opsMutex map[string]*sync.RWMutex
+	mu       sync.Mutex
 }
 
 // TODO: functions for generate info, check if hash is in range
@@ -45,6 +44,7 @@ func StartNode(config *Config, currNode *NodeInfo, seedNode *NodeInfo) *Node {
 	}
 	n.Info.GetHash()
 	n.opsChan = make(map[string]chan []byte)
+	n.opsMutex = make(map[string]*sync.RWMutex)
 	if config == nil {
 		n.RequestConfig(seedNode)
 	} else {
@@ -75,9 +75,17 @@ func (ni *NodeInfo) GetSenderName() string {
 // TODO: make this concurrent
 
 func (n *Node) Read(key string) (value string, err error) {
+	m, ok := n.opsMutex[key]
+	if !ok {
+		m = &sync.RWMutex{}
+		n.opsMutex[key] = m
+	}
+	m.RLock()
+	defer m.RUnlock()
 	n.mu.Lock()
 	n.opsChan[key] = make(chan []byte)
 	n.mu.Unlock()
+
 	readNum := 0
 	nodesWithKey := n.Router.GetNodesInRange(key, n.Config.ReplicationFactor)
 	for _, node := range nodesWithKey {
@@ -94,7 +102,7 @@ func (n *Node) Read(key string) (value string, err error) {
 				lastTimestamp = ts
 			}
 			if readNum >= n.Config.MinReadsRequired {
-				if latestValue != DeletedHash {
+				if latestValue != DeletedHash && latestValue != "" {
 					return latestValue, nil
 				} else {
 					return "", errors.New("key not found")
@@ -108,9 +116,17 @@ func (n *Node) Read(key string) (value string, err error) {
 }
 
 func (n *Node) Write(key string, value string) (err error) {
+	m, ok := n.opsMutex[key]
+	if !ok {
+		m = &sync.RWMutex{}
+		n.opsMutex[key] = m
+	}
+	m.Lock()
+	defer m.Unlock()
 	n.mu.Lock()
 	n.opsChan[key] = make(chan []byte)
 	n.mu.Unlock()
+
 	writeNum := 0
 	value = AddTimestampToValue(value)
 	nodesWithKey := n.Router.GetNodesInRange(key, n.Config.ReplicationFactor)

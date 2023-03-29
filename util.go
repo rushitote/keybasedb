@@ -1,12 +1,13 @@
 package main
 
-import "time"
+import (
+	"encoding/binary"
+	"time"
+)
 
 func AddTimestampToValue(value string) string {
-	now, err := time.Now().MarshalText()
-	if err != nil {
-		panic(err)
-	}
+	now := make([]byte, 8)
+	binary.BigEndian.PutUint64(now, uint64(time.Now().UnixNano()))
 	return string(now) + value
 }
 
@@ -14,12 +15,12 @@ func GetTimestampFromValue(value string) string {
 	if value == "" {
 		return ""
 	}
-	return value[:35]
+	return value[:8]
 }
 
 func GetValueTextFromValue(value string) string {
 	if value == "" {
 		return ""
 	}
-	return value[35:]
+	return value[8:]
 }
