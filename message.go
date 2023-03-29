@@ -1,0 +1,139 @@
+package main
+
+import "encoding/json"
+
+func (n *Node) ProcessMsg(b []byte) {
+	mType := uint8(b[0])
+	sender := string(b[1:9])
+	msg := b[9:]
+	if mType == REQUEST_CONFIG {
+		n.processRequestConfig(sender)
+	} else if mType == RESPONSE_CONFIG {
+		n.processResponseConfig(msg)
+	} else if mType == REQUEST_READ {
+		n.processRequestRead(sender, msg)
+	} else if mType == RESPONSE_READ {
+		n.processResponseRead(msg)
+	} else if mType == REQUEST_WRITE {
+		n.processRequestWrite(sender, msg)
+	} else if mType == RESPONSE_WRITE {
+		n.processResponseWrite(msg)
+	} else {
+		println("Unknown message type", mType)
+	}
+}
+
+func (n *Node) RequestConfig(seedNode *NodeInfo) {
+	var b []byte
+	b = append(b, REQUEST_CONFIG)
+	b = append(b, []byte(n.Info.GetSenderName())...)
+	n.MList.SendTCP(b, seedNode.Name)
+}
+
+func (n *Node) processRequestConfig(sender string) {
+	cfg := n.Config.SerializeConfig()
+	var b []byte
+	b = append(b, RESPONSE_CONFIG)
+	b = append(b, []byte(n.Info.GetSenderName())...)
+	b = append(b, cfg...)
+	n.MList.SendTCP(b, sender)
+}
+
+func (n *Node) processResponseConfig(msg []byte) {
+	n.Config = DeserializeConfig(msg)
+	n.Router = CreateRouter(n.Config)
+}
+
+func (n *Node) RequestRead(key string, to string) {
+	var b []byte
+	b = append(b, REQUEST_READ)
+	b = append(b, []byte(n.Info.GetSenderName())...)
+	b = append(b, []byte(key)...)
+	n.MList.SendTCP(b, to)
+}
+
+func (n *Node) processRequestRead(sender string, msg []byte) {
+	key := string(msg)
+	value := n.Engine.Read(key)
+	var b []byte
+	b = append(b, RESPONSE_READ)
+	b = append(b, []byte(n.Info.GetSenderName())...)
+	respMsg, err := json.Marshal(ReadRequestMsg{key, value})
+	if err != nil {
+		panic(err)
+	}
+	b = append(b, respMsg...)
+	n.MList.SendTCP(b, sender)
+}
+
+func (n *Node) processResponseRead(msg []byte) {
+	var respMsg ReadRequestMsg
+	err := json.Unmarshal(msg, &respMsg)
+	if err != nil {
+		panic(err)
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.opsChan[respMsg.Key] <- []byte(respMsg.Value)
+}
+
+func (n *Node) RequestWrite(key string, value string, to string) {
+	var b []byte
+	b = append(b, REQUEST_WRITE)
+	b = append(b, []byte(n.Info.GetSenderName())...)
+	reqMsg, err := json.Marshal(WriteRequestMsg{key, value})
+	if err != nil {
+		panic(err)
+	}
+	b = append(b, reqMsg...)
+	n.MList.SendTCP(b, to)
+}
+
+func (n *Node) processRequestWrite(sender string, msg []byte) {
+	var reqMsg WriteRequestMsg
+	err := json.Unmarshal(msg, &reqMsg)
+	if err != nil {
+		panic(err)
+	}
+
+	prevVal := n.Engine.Read(reqMsg.Key)
+	if prevVal == "" || GetTimestampFromValue(prevVal) < GetTimestampFromValue(reqMsg.Value) {
+		n.Engine.Write(reqMsg.Key, reqMsg.Value)
+	}
+	var b []byte
+	b = append(b, RESPONSE_WRITE)
+	b = append(b, []byte(n.Info.GetSenderName())...)
+	b = append(b, msg...)
+	n.MList.SendTCP(b, sender)
+}
+
+func (n *Node) processResponseWrite(msg []byte) {
+	var reqMsg WriteRequestMsg
+	err := json.Unmarshal(msg, &reqMsg)
+	if err != nil {
+		panic(err)
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.opsChan[reqMsg.Key] <- []byte(reqMsg.Value)
+}
+
+// Types of messages
+const (
+	REQUEST_CONFIG = iota
+	RESPONSE_CONFIG
+	REQUEST_READ
+	REQUEST_WRITE
+	RESPONSE_READ
+	RESPONSE_WRITE
+)
+
+type ReadRequestMsg struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type WriteRequestMsg struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
