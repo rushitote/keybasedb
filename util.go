@@ -1,25 +1,30 @@
 package main
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
+
+// TODO: need to use better serialization method
 
 func AddTimestampToValue(value string) string {
-	now, err := time.Now().MarshalText()
-	if err != nil {
-		panic(err)
+	if value == "" {
+		return ""
 	}
-	return string(now) + value
+	timestamp := fmt.Sprintf("%d", time.Now().Unix())
+	return timestamp + value
 }
 
 func GetTimestampFromValue(value string) string {
 	if value == "" {
 		return ""
 	}
-	return value[:35]
+	return value[:10]
 }
 
 func GetValueTextFromValue(value string) string {
 	if value == "" {
 		return ""
 	}
-	return value[35:]
+	return value[10:]
 }

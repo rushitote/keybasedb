@@ -75,7 +75,7 @@ func main() {
 	}
 
 	cfg := CreateConfig(
-		TWO,
+		ONE,
 		ALL,
 		[]*NodeInfo{&ni, &otherNode})
 
