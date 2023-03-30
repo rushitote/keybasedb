@@ -54,7 +54,10 @@ func (n *Node) RequestRead(key string, to string) {
 
 func (n *Node) processRequestRead(sender string, msg []byte) {
 	key := string(msg)
-	value := n.Engine.Read(key)
+	value, err := n.Engine.Read(key)
+	if err != nil {
+		panic(err)
+	}
 	var b []byte
 	b = append(b, RESPONSE_READ)
 	b = append(b, []byte(n.Info.GetSenderName())...)
@@ -96,7 +99,10 @@ func (n *Node) processRequestWrite(sender string, msg []byte) {
 		panic(err)
 	}
 
-	prevVal := n.Engine.Read(reqMsg.Key)
+	prevVal, err := n.Engine.Read(reqMsg.Key)
+	if err != nil {
+		panic(err)
+	}
 	if prevVal == "" || GetTimestampFromValue(prevVal) < GetTimestampFromValue(reqMsg.Value) {
 		n.Engine.Write(reqMsg.Key, reqMsg.Value)
 	}
@@ -127,6 +133,8 @@ const (
 	RESPONSE_READ
 	RESPONSE_WRITE
 )
+
+// TODO: find a better way to serialize/deserialize than json
 
 type ReadRequestMsg struct {
 	Key   string `json:"key"`

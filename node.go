@@ -17,8 +17,6 @@ type Node struct {
 	mu       sync.Mutex
 }
 
-// TODO: functions for generate info, check if hash is in range
-
 type NodeInfo struct {
 	Name         string `json:"name"`
 	Addr         string `json:"addr"`
@@ -39,9 +37,7 @@ func StartNode(config *Config, currNode *NodeInfo, seedNode *NodeInfo) *Node {
 	var n Node
 	n.MList = CreateMemberList(currNode, seedNode, n.ProcessMsg)
 	n.Info = currNode
-	n.Engine = &Engine{
-		m: make(map[string]string),
-	}
+	n.Engine = CreateEngine(n.Info.Name)
 	n.Info.GetHash()
 	n.opsChan = make(map[string]chan []byte)
 	n.opsMutex = make(map[string]*sync.RWMutex)
@@ -50,6 +46,7 @@ func StartNode(config *Config, currNode *NodeInfo, seedNode *NodeInfo) *Node {
 	} else {
 		n.Config = config
 		n.Router = CreateRouter(config)
+		n.Config.State = STABLE
 	}
 	return &n
 }
@@ -75,6 +72,10 @@ func (ni *NodeInfo) GetSenderName() string {
 // TODO: make this concurrent
 
 func (n *Node) Read(key string) (value string, err error) {
+	if n.Config.State != STABLE {
+		return "", errors.New("cluster is not stable")
+	}
+
 	m, ok := n.opsMutex[key]
 	if !ok {
 		m = &sync.RWMutex{}
@@ -116,6 +117,10 @@ func (n *Node) Read(key string) (value string, err error) {
 }
 
 func (n *Node) Write(key string, value string) (err error) {
+	if n.Config.State != STABLE {
+		return errors.New("cluster is not stable")
+	}
+
 	m, ok := n.opsMutex[key]
 	if !ok {
 		m = &sync.RWMutex{}
@@ -161,6 +166,7 @@ functions:
 - DONE - write op
 - DONE - coordinate with other nodes for replication
 - DONE - if seed node, return config
+- DONE - integrate badger
 - repair process
 	- remap keys on node addition or removal
 - API server
