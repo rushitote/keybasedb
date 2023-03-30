@@ -49,14 +49,16 @@ func dump1() {
 
 func main() {
 	otherNode := NodeInfo{
-		Name: "n8001",
-		Addr: "0.0.0.0",
-		Port: "8001",
+		Name:    "n8001",
+		Addr:    "0.0.0.0",
+		Port:    "8001",
+		APIPort: "9001",
 	}
 	ni := NodeInfo{
-		Name: "n8000",
-		Addr: "0.0.0.0",
-		Port: "8000",
+		Name:    "n8000",
+		Addr:    "0.0.0.0",
+		Port:    "8000",
+		APIPort: "9000",
 	}
 
 	if len(os.Args) > 1 {
@@ -65,28 +67,30 @@ func main() {
 		for {
 			println("running", n.Info.Name)
 			time.Sleep(5 * time.Second)
-			if c%2 != 0 {
-				n.Write("key1", "value1")
-			} else {
-				n.Delete("key1")
-			}
+			// if c%2 != 0 {
+			// 	n.Write("key1", "value1")
+			// } else {
+			// 	n.Delete("key1")
+			// }
 			c++
 		}
 	}
 
 	cfg := CreateConfig(
-		ONE,
+		TWO,
 		ALL,
 		[]*NodeInfo{&ni, &otherNode})
 
 	n := StartNode(cfg, &ni, nil)
 
-	for {
-		v, err := n.Read("key1")
-		if err != nil {
-			println("err", err.Error())
-		}
-		println("value = ", v)
-		time.Sleep(3 * time.Second)
-	}
+	n.Server.Start()
+
+	// for {
+	// 	v, err := n.Read("key1")
+	// 	if err != nil {
+	// 		println("err", err.Error())
+	// 	}
+	// 	println("value = ", v)
+	// 	time.Sleep(3 * time.Second)
+	// }
 }

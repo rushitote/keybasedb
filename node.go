@@ -12,6 +12,7 @@ type Node struct {
 	Info     *NodeInfo
 	Engine   *Engine
 	Router   *Router
+	Server   *APIServer
 	opsChan  map[string]chan []byte
 	opsMutex map[string]*sync.RWMutex
 	mu       sync.Mutex
@@ -21,6 +22,7 @@ type NodeInfo struct {
 	Name         string `json:"name"`
 	Addr         string `json:"addr"`
 	Port         string `json:"port"`
+	APIPort      string `json:"api_port"`
 	NodeHash     string `json:"node_hash"`
 	PrevNodeHash string `json:"prev_node_hash"`
 	NextNodeHash string `json:"next_node_hash"`
@@ -39,6 +41,7 @@ func StartNode(config *Config, currNode *NodeInfo, seedNode *NodeInfo) *Node {
 	n.Info = currNode
 	n.Engine = CreateEngine(n.Info.Name)
 	n.Info.GetHash()
+	n.Server = InitServer(n.Info, n.Read, n.Write, n.Delete)
 	n.opsChan = make(map[string]chan []byte)
 	n.opsMutex = make(map[string]*sync.RWMutex)
 	if config == nil {
