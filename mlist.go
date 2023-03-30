@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/memberlist"
+	"github.com/sirupsen/logrus"
 )
 
 // MemberList is a wrapper around the memberlist package
@@ -24,6 +25,7 @@ func CreateMemberList(node *NodeInfo, seedNode *NodeInfo, processMsg func(b []by
 	config.Delegate = &MemberListDelegate{
 		ProcessMsg: processMsg,
 	}
+	config.LogOutput = logrus.StandardLogger().WriterLevel(logrus.DebugLevel)
 
 	list, err := memberlist.Create(config)
 	if err != nil {
