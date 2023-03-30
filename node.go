@@ -4,6 +4,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Node struct {
@@ -45,13 +47,22 @@ func StartNode(config *Config, currNode *NodeInfo, seedNode *NodeInfo) *Node {
 	n.opsChan = make(map[string]chan []byte)
 	n.opsMutex = make(map[string]*sync.RWMutex)
 	if config == nil {
-		n.RequestConfig(seedNode)
+		n.RequestConfigRep(seedNode)
 	} else {
 		n.Config = config
 		n.Router = CreateRouter(config)
 		n.Config.State = STABLE
 	}
+	log.Infof("Node %s started", n.Info.Name)
 	return &n
+}
+
+func (n *Node) RequestConfigRep(seedNode *NodeInfo) {
+	n.RequestConfig(seedNode)
+	time.Sleep(1 * time.Second)
+	if n.Config == nil {
+		n.RequestConfigRep(seedNode)
+	}
 }
 
 func (ni *NodeInfo) CheckIfHashInRange(hash string) bool {
@@ -75,6 +86,7 @@ func (ni *NodeInfo) GetSenderName() string {
 // TODO: make this concurrent
 
 func (n *Node) Read(key string) (value string, err error) {
+	log.Infof("Read request for key=%s", key)
 	if n.Config.State != STABLE {
 		return "", errors.New(CLUSTER_NOT_STABLE)
 	}
@@ -87,7 +99,7 @@ func (n *Node) Read(key string) (value string, err error) {
 	m.RLock()
 	defer m.RUnlock()
 	n.mu.Lock()
-	n.opsChan[key] = make(chan []byte)
+	n.opsChan[key] = make(chan []byte, n.Config.ReplicationFactor)
 	n.mu.Unlock()
 
 	readNum := 0
@@ -120,6 +132,7 @@ func (n *Node) Read(key string) (value string, err error) {
 }
 
 func (n *Node) Write(key string, value string) (err error) {
+	log.Infof("Write request for key=%s", key)
 	if n.Config.State != STABLE {
 		return errors.New(CLUSTER_NOT_STABLE)
 	}
@@ -132,7 +145,7 @@ func (n *Node) Write(key string, value string) (err error) {
 	m.Lock()
 	defer m.Unlock()
 	n.mu.Lock()
-	n.opsChan[key] = make(chan []byte)
+	n.opsChan[key] = make(chan []byte, n.Config.ReplicationFactor)
 	n.mu.Unlock()
 
 	writeNum := 0
@@ -170,7 +183,7 @@ functions:
 - DONE - coordinate with other nodes for replication
 - DONE - if seed node, return config
 - DONE - integrate badger
-- repair process
+- repair process (merkle tree)
 	- remap keys on node addition or removal
-- API server
+- DONE - API server
 */

@@ -1,6 +1,10 @@
 package main
 
-import "sort"
+import (
+	"sort"
+
+	log "github.com/sirupsen/logrus"
+)
 
 // Router is for routing requests to other nodes
 type Router struct {
@@ -15,13 +19,17 @@ func CreateRouter(cfg *Config) *Router {
 }
 
 func (r *Router) CreateRing() {
-	nodes := make([]*NodeInfo, 0)
+	log.Infof("Creating ring of nodes in the cluster")
+	for _, node := range r.cfg.Nodes {
+		node.GetHash()
+	}
+	nodes := make([]*NodeInfo, len(r.cfg.Nodes))
 	copy(nodes, r.cfg.Nodes)
 	sort.Slice(nodes, func(i, j int) bool {
 		return nodes[i].NodeHash < nodes[j].NodeHash
 	})
 	for i, node := range nodes {
-		node.PrevNodeHash = nodes[(i-1)%len(nodes)].NodeHash
+		node.PrevNodeHash = nodes[(i-1+len(nodes))%len(nodes)].NodeHash
 		node.NextNodeHash = nodes[(i+1)%len(nodes)].NodeHash
 	}
 }

@@ -1,6 +1,10 @@
 package main
 
-import "net/http"
+import (
+	"net/http"
+
+	log "github.com/sirupsen/logrus"
+)
 
 type APIServer struct {
 	h      *http.Server
@@ -30,7 +34,7 @@ func (s *APIServer) Start() error {
 	http.HandleFunc("/write", s.writeHandler)
 	http.HandleFunc("/delete", s.deleteHandler)
 
-	println("Starting server at " + s.addr + ":" + s.port)
+	log.Info("Starting server at " + s.addr + ":" + s.port)
 
 	err := s.h.ListenAndServe()
 	if err != nil {
@@ -42,6 +46,7 @@ func (s *APIServer) Start() error {
 
 func (s *APIServer) readHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
+	log.Infof("Server processing read request for key=%s", key)
 	value, err := s.read(key)
 	if err != nil {
 		if err.Error() == KEY_NOT_FOUND {
@@ -59,6 +64,7 @@ func (s *APIServer) readHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *APIServer) writeHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
+	log.Infof("Server processing write request for key=%s", key)
 	value := r.URL.Query().Get("value")
 	err := s.write(key, value)
 	if err != nil {
@@ -71,6 +77,7 @@ func (s *APIServer) writeHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *APIServer) deleteHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
+	log.Infof("Server processing delete request for key=%s", key)
 	s.delete(key)
 	w.WriteHeader(http.StatusOK)
 }
