@@ -76,7 +76,7 @@ func (ni *NodeInfo) GetSenderName() string {
 
 func (n *Node) Read(key string) (value string, err error) {
 	if n.Config.State != STABLE {
-		return "", errors.New("cluster is not stable")
+		return "", errors.New(CLUSTER_NOT_STABLE)
 	}
 
 	m, ok := n.opsMutex[key]
@@ -109,11 +109,11 @@ func (n *Node) Read(key string) (value string, err error) {
 				if latestValue != DeletedHash && latestValue != "" {
 					return latestValue, nil
 				} else {
-					return "", errors.New("key not found")
+					return "", errors.New(KEY_NOT_FOUND)
 				}
 			}
 		case <-time.After(ReadTimeout):
-			return "", errors.New("read timeout")
+			return "", errors.New(READ_TIMEOUT)
 		}
 
 	}
@@ -121,7 +121,7 @@ func (n *Node) Read(key string) (value string, err error) {
 
 func (n *Node) Write(key string, value string) (err error) {
 	if n.Config.State != STABLE {
-		return errors.New("cluster is not stable")
+		return errors.New(CLUSTER_NOT_STABLE)
 	}
 
 	m, ok := n.opsMutex[key]
@@ -149,7 +149,7 @@ func (n *Node) Write(key string, value string) (err error) {
 				return nil
 			}
 		case <-time.After(WriteTimeout):
-			return errors.New("write timeout")
+			return errors.New(CLUSTER_NOT_STABLE)
 		}
 	}
 }

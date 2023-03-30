@@ -44,7 +44,7 @@ func (s *APIServer) readHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 	value, err := s.read(key)
 	if err != nil {
-		if err.Error() == "key not found" {
+		if err.Error() == KEY_NOT_FOUND {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte(err.Error()))
 			return
