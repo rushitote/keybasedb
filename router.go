@@ -38,6 +38,7 @@ func (r *Router) GetNodesInRange(key string, replicationFactor ReplicationFactor
 	keyHash := GenerateHash(key)
 	nodes := make([]*NodeInfo, 0)
 	ringStartNode := -1
+	// TODO: Make this more efficient
 	for i, nodeInfo := range r.cfg.Nodes {
 		if nodeInfo.CheckIfHashInRange(keyHash) {
 			ringStartNode = i
@@ -50,4 +51,31 @@ func (r *Router) GetNodesInRange(key string, replicationFactor ReplicationFactor
 	return nodes
 }
 
-// TODO: Make this more efficient
+func (r *Router) GetHashRangesForRepair(currNode, otherNode string) []HashRange {
+	currNodeHash := GenerateHash(currNode)
+	otherNodeHash := GenerateHash(otherNode)
+	hashRanges := make([]HashRange, 0)
+	for i, node := range r.cfg.Nodes {
+		isRangePresent := false
+		for j := i; j < i+int(r.cfg.ReplicationFactor); j++ {
+			if r.cfg.Nodes[j%len(r.cfg.Nodes)].NodeHash == otherNodeHash {
+				isRangePresent = true
+				break
+			}
+		}
+		if !isRangePresent {
+			continue
+		}
+		isRangePresent = false
+		for j := i; j < i+int(r.cfg.ReplicationFactor); j++ {
+			if r.cfg.Nodes[j%len(r.cfg.Nodes)].NodeHash == currNodeHash {
+				isRangePresent = true
+				break
+			}
+		}
+		if isRangePresent {
+			hashRanges = append(hashRanges, HashRange{Low: node.PrevNodeHash, High: node.NodeHash})
+		}
+	}
+	return hashRanges
+}

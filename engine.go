@@ -1,12 +1,15 @@
 package main
 
 import (
+	"sort"
+
 	badger "github.com/dgraph-io/badger/v4"
 )
 
 // Storage Engine Interface
 type Engine struct {
 	db *badger.DB
+	mt *MerkleTree
 }
 
 func CreateEngine(dir string) *Engine {
@@ -51,6 +54,41 @@ func (e *Engine) Delete(key string) {
 	e.db.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(key))
 	})
+}
+
+func (e *Engine) CreateMerkleTree(hashRange HashRange) {
+	e.mt = CreateMerkleTree(hashRange)
+	kvHashLists := make([][]string, len(e.mt.LeafNodes))
+	// iterate over all keys in the range and add them to the merkle tree
+	e.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			key := string(item.Key())
+			keyHash := GenerateHash(key)
+			idx := GetMTLeafIndex(keyHash, e.mt.Root)
+			if idx == -1 {
+				continue
+			}
+			var value string
+			err := item.Value(func(val []byte) error {
+				value = string(val)
+				return nil
+			})
+			if err != nil {
+				panic(err)
+			}
+			kvHash := GenerateHash(key + value)
+			kvHashLists[idx] = append(kvHashLists[idx], kvHash)
+		}
+		return nil
+	})
+	for i, kvHashList := range kvHashLists {
+		sort.Strings(kvHashList)
+		e.mt.LeafNodes[i].Hash = GenerateHashOfList(kvHashList)
+	}
 }
 
 const (

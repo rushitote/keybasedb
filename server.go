@@ -13,13 +13,16 @@ type APIServer struct {
 	read   func(key string) (string, error)
 	write  func(key, value string) error
 	delete func(key string) error
+	repair func(otherNode string) error
 }
 
-func InitServer(ni *NodeInfo, Read func(key string) (string, error), Write func(key, value string) error, Delete func(key string) error) *APIServer {
+// TODO: Refactor long argument list
+func InitServer(ni *NodeInfo, Read func(key string) (string, error), Write func(key, value string) error, Delete func(key string) error, Repair func(otherNode string) error) *APIServer {
 	var s APIServer
 	s.read = Read
 	s.write = Write
 	s.delete = Delete
+	s.repair = Repair
 	s.addr = ni.Addr
 	s.port = ni.APIPort
 	return &s
@@ -33,6 +36,7 @@ func (s *APIServer) Start() error {
 	http.HandleFunc("/read", s.readHandler)
 	http.HandleFunc("/write", s.writeHandler)
 	http.HandleFunc("/delete", s.deleteHandler)
+	http.HandleFunc("/repair", s.repairHandler)
 
 	log.Info("Starting server at " + s.addr + ":" + s.port)
 
@@ -78,7 +82,24 @@ func (s *APIServer) writeHandler(w http.ResponseWriter, r *http.Request) {
 func (s *APIServer) deleteHandler(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
 	log.Infof("Server processing delete request for key=%s", key)
-	s.delete(key)
+	err := s.delete(key)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *APIServer) repairHandler(w http.ResponseWriter, r *http.Request) {
+	otherNode := r.URL.Query().Get("node")
+	log.Infof("Server processing repair request with node=%s", otherNode)
+	err := s.repair(otherNode)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }
 

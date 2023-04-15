@@ -43,7 +43,7 @@ func StartNode(config *Config, currNode *NodeInfo, seedNode *NodeInfo) *Node {
 	n.Info = currNode
 	n.Engine = CreateEngine(n.Info.Name)
 	n.Info.GetHash()
-	n.Server = InitServer(n.Info, n.Read, n.Write, n.Delete)
+	n.Server = InitServer(n.Info, n.Read, n.Write, n.Delete, n.Repair)
 	n.opsChan = make(map[string]chan []byte)
 	n.opsMutex = make(map[string]*sync.RWMutex)
 	if config == nil {
@@ -66,16 +66,7 @@ func (n *Node) RequestConfigRep(seedNode *NodeInfo) {
 }
 
 func (ni *NodeInfo) CheckIfHashInRange(hash string) bool {
-	if ni.NodeHash > ni.PrevNodeHash {
-		if hash > ni.PrevNodeHash && hash < ni.NodeHash {
-			return true
-		}
-	} else {
-		if hash > ni.PrevNodeHash || hash < ni.NodeHash {
-			return true
-		}
-	}
-	return false
+	return CheckIfHashInHashRange(hash, HashRange{Low: ni.PrevNodeHash, High: ni.NodeHash})
 }
 
 // 8 character name, optionally padded with 0s
@@ -171,6 +162,27 @@ func (n *Node) Delete(key string) (err error) {
 	return n.Write(key, DeletedHash)
 }
 
+func (n *Node) Repair(otherNode string) (err error) {
+	log.Infof("Repair request for node=%s", otherNode)
+	if n.Config.State != STABLE {
+		return errors.New(CLUSTER_NOT_STABLE)
+	}
+	n.Config.State = UNSTABLE
+	hashRanges := n.Router.GetHashRangesForRepair(n.Info.Name, otherNode)
+	for _, hashRange := range hashRanges {
+		err := n.RepairHashRange(otherNode, hashRange)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (n *Node) RepairHashRange(otherNode string, hashRange HashRange) (err error) {
+	n.Engine.CreateMerkleTree(hashRange)
+	return nil
+}
+
 const (
 	ReadTimeout  = 3 * time.Second
 	WriteTimeout = 3 * time.Second
@@ -186,4 +198,6 @@ functions:
 - repair process (merkle tree)
 	- remap keys on node addition or removal
 - DONE - API server
+- Remove panics
+- Add two phase commit
 */

@@ -27,6 +27,7 @@ require (
 	github.com/hashicorp/go-multierror v1.0.0 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.0 // indirect
+	github.com/holiman/uint256 v1.2.2 // indirect
 	github.com/klauspost/compress v1.12.3 // indirect
 	github.com/miekg/dns v1.1.26 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

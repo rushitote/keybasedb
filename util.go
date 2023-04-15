@@ -28,3 +28,8 @@ func GetValueTextFromValue(value string) string {
 	}
 	return value[10:]
 }
+
+type HashRange struct {
+	Low string
+	High string
+}

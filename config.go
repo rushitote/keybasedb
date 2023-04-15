@@ -8,7 +8,7 @@ type Config struct {
 	ConsistencyLevel  ConsistencyLevel  `json:"consistency_level"`
 	MinReadsRequired  int               `json:"min_reads_required"`
 	MinWritesRequired int               `json:"min_writes_required"`
-	Nodes             []*NodeInfo        `json:"nodes"`
+	Nodes             []*NodeInfo       `json:"nodes"`
 	State             ClusterState      `json:"state"`
 }
 
@@ -30,10 +30,8 @@ const (
 type ClusterState string
 
 const (
-	STABLE  ClusterState = "STABLE"  // General state
-	EXPAND  ClusterState = "EXPAND"  // When a node is being added
-	SHRINK  ClusterState = "SHRINK"  // When a node is being removed
-	UNKNOWN ClusterState = "UNKNOWN" // Unknown state
+	STABLE   ClusterState = "STABLE"   // General state
+	UNSTABLE ClusterState = "UNSTABLE" // Unstable state
 )
 
 func CreateConfig(replicationFactor ReplicationFactor, consistencyLevel ConsistencyLevel, nodes []*NodeInfo) *Config {
@@ -63,7 +61,7 @@ func CreateConfig(replicationFactor ReplicationFactor, consistencyLevel Consiste
 		MinReadsRequired:  minReadsRequired,
 		MinWritesRequired: minWritesRequired,
 		Nodes:             nodes,
-		State:             UNKNOWN,
+		State:             UNSTABLE,
 	}
 }
 

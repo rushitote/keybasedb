@@ -142,6 +142,8 @@ const (
 	REQUEST_WRITE
 	RESPONSE_READ
 	RESPONSE_WRITE
+	REQUEST_REPAIR
+	RESPONSE_REPAIR
 )
 
 // TODO: find a better way to serialize/deserialize than json
