@@ -22,6 +22,8 @@ func (n *Node) ProcessMsg(b []byte) {
 		n.processRequestWrite(sender, msg)
 	} else if mType == RESPONSE_WRITE {
 		n.processResponseWrite(msg)
+	} else if mType == REQUEST_REPAIR {
+		n.processRequestRepair(sender, msg)
 	} else {
 		log.Infof("Unknown message type %s", mType)
 	}
@@ -73,7 +75,7 @@ func (n *Node) processRequestRead(sender string, msg []byte) {
 		panic(err)
 	}
 	b = append(b, respMsg...)
-	log.Infof("Sending read response of key=%s to %s", key, sender)
+	log.Infof("Sending read response of key=%s and value=%s to %s", key, value, sender)
 	n.MList.SendTCP(b, sender)
 }
 
@@ -134,6 +136,37 @@ func (n *Node) processResponseWrite(msg []byte) {
 	n.opsChan[reqMsg.Key] <- []byte(reqMsg.Value)
 }
 
+func (n *Node) RequestRepair(key string, value string, to string) {
+	var b []byte
+	b = append(b, REQUEST_REPAIR)
+	b = append(b, []byte(n.Info.GetSenderName())...)
+	reqMsg, err := json.Marshal(RepairRequestMsg{key, value})
+	if err != nil {
+		panic(err)
+	}
+	b = append(b, reqMsg...)
+	log.Infof("Requesting repair of key=%s to %s", key, to)
+	n.MList.SendTCP(b, to)
+}
+
+func (n *Node) processRequestRepair(sender string, msg []byte) {
+	var reqMsg RepairRequestMsg
+	err := json.Unmarshal(msg, &reqMsg)
+	if err != nil {
+		panic(err)
+	}
+	prevVal, err := n.Engine.Read(reqMsg.Key)
+	if err != nil {
+		panic(err)
+	}
+	if GetTimestampFromValue(reqMsg.Value) > GetTimestampFromValue(prevVal) {
+		log.Infof("Repairing key=%s with value=%s", reqMsg.Key, reqMsg.Value)
+		n.Engine.Write(reqMsg.Key, reqMsg.Value)
+	} else {
+		log.Infof("Not repairing key=%s with value=%s", reqMsg.Key, reqMsg.Value)
+	}
+}
+
 // Types of messages
 const (
 	REQUEST_CONFIG = iota
@@ -143,7 +176,6 @@ const (
 	RESPONSE_READ
 	RESPONSE_WRITE
 	REQUEST_REPAIR
-	RESPONSE_REPAIR
 )
 
 // TODO: find a better way to serialize/deserialize than json
@@ -154,6 +186,11 @@ type ReadRequestMsg struct {
 }
 
 type WriteRequestMsg struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type RepairRequestMsg struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }

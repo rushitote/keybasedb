@@ -175,11 +175,17 @@ func (n *Node) Repair(otherNode string) (err error) {
 			return err
 		}
 	}
+	n.Config.State = STABLE
 	return nil
 }
 
 func (n *Node) RepairHashRange(otherNode string, hashRange HashRange) (err error) {
-	n.Engine.CreateMerkleTree(hashRange)
+	n.Engine.Stream(func(key, value string) error {
+		if CheckIfHashInHashRange(key, hashRange) {
+			n.RequestRepair(key, value, otherNode)
+		}
+		return nil
+	})
 	return nil
 }
 

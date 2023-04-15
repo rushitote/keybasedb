@@ -56,6 +56,31 @@ func (e *Engine) Delete(key string) {
 	})
 }
 
+func (e *Engine) Stream(f func (key string, value string) error) {
+	e.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			key := string(item.Key())
+			var value string
+			err := item.Value(func(val []byte) error {
+				value = string(val)
+				return nil
+			})
+			if err != nil {
+				panic(err)
+			}
+			err = f(key, value)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 func (e *Engine) CreateMerkleTree(hashRange HashRange) {
 	e.mt = CreateMerkleTree(hashRange)
 	kvHashLists := make([][]string, len(e.mt.LeafNodes))
