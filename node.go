@@ -15,6 +15,7 @@ type Node struct {
 	Engine   *Engine
 	Router   *Router
 	Server   *APIServer
+	Graph    *Graph
 	opsChan  map[string]chan []byte
 	opsMutex map[string]*sync.RWMutex
 	mu       sync.Mutex
@@ -43,9 +44,10 @@ func StartNode(config *Config, currNode *NodeInfo, seedNode *NodeInfo) *Node {
 	n.Info = currNode
 	n.Engine = CreateEngine(n.Info.Name)
 	n.Info.GetHash()
-	n.Server = InitServer(n.Info, n.Read, n.Write, n.Delete, n.Repair)
+	n.Server = InitServer(&n, n.Read, n.Write, n.Delete, n.Repair)
 	n.opsChan = make(map[string]chan []byte)
 	n.opsMutex = make(map[string]*sync.RWMutex)
+	n.Graph = &Graph{}
 	if config == nil {
 		n.RequestConfigRep(seedNode)
 	} else {

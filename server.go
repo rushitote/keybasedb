@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -15,17 +16,19 @@ type APIServer struct {
 	write  func(key, value string) error
 	delete func(key string) error
 	repair func(otherNode string) error
+	node   *Node
 }
 
 // TODO: Refactor long argument list
-func InitServer(ni *NodeInfo, Read func(key string) (string, error), Write func(key, value string) error, Delete func(key string) error, Repair func(otherNode string) error) *APIServer {
+func InitServer(n *Node, Read func(key string) (string, error), Write func(key, value string) error, Delete func(key string) error, Repair func(otherNode string) error) *APIServer {
 	var s APIServer
 	s.read = Read
 	s.write = Write
 	s.delete = Delete
 	s.repair = Repair
-	s.addr = ni.Addr
-	s.port = ni.APIPort
+	s.addr = n.Info.Addr
+	s.port = n.Info.APIPort
+	s.node = n
 	return &s
 }
 
@@ -41,6 +44,7 @@ func (s *APIServer) Start() error {
 	http.HandleFunc("/graph/add-edge", s.addEdgeHandler)
 	http.HandleFunc("/graph/remove-edge", s.removeEdgeHandler)
 	http.HandleFunc("/graph/get-neighbours", s.getNeighboursHandler)
+	http.HandleFunc("/graph/get-degrees", s.getDegreesBetweenHandler)
 
 	log.Info("Starting server at " + s.addr + ":" + s.port)
 
@@ -124,6 +128,9 @@ func (s *APIServer) addEdgeHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	}
+
+	s.node.RequestGraphRecon()
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -196,6 +203,9 @@ func (s *APIServer) removeEdgeHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	}
+
+	s.node.RequestGraphRecon()
+
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -228,6 +238,15 @@ func (s *APIServer) removeDirectedEdge(v1 string, v2 string) error {
 		return err
 	}
 	return nil
+}
+
+func (s *APIServer) getDegreesBetweenHandler(w http.ResponseWriter, r *http.Request) {
+	v1 := r.URL.Query().Get("v1")
+	v2 := r.URL.Query().Get("v2")
+	log.Infof("Server processing get degrees between request for v1=%s, v2=%s", v1, v2)
+	degrees := s.node.Graph.FindDegreeBetween(v1, v2)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(strconv.Itoa(degrees)))
 }
 
 func (s *APIServer) Stop() {

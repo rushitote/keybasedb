@@ -24,6 +24,12 @@ func (n *Node) ProcessMsg(b []byte) {
 		n.processResponseWrite(msg)
 	} else if mType == REQUEST_REPAIR {
 		n.processRequestRepair(sender, msg)
+	} else if mType == REQUEST_ND {
+		n.processRequestND(sender, msg)
+	} else if mType == RESPONSE_ND {
+		n.processResponseND(msg)
+	} else if mType == REQUEST_GRAPH_RECON {
+		n.processRequestGraphRecon()
 	} else {
 		log.Infof("Unknown message type %s", mType)
 	}
@@ -50,6 +56,9 @@ func (n *Node) processRequestConfig(sender string) {
 func (n *Node) processResponseConfig(msg []byte) {
 	n.Config = DeserializeConfig(msg)
 	n.Router = CreateRouter(n.Config)
+	if len(n.MList.List.Members()) == len(n.Config.Nodes) {
+		n.RequestGraphRecon()
+	}
 }
 
 func (n *Node) RequestRead(key string, to string) {
@@ -167,6 +176,65 @@ func (n *Node) processRequestRepair(sender string, msg []byte) {
 	}
 }
 
+func (n *Node) RequestND(to string, key string) {
+	var b []byte
+	b = append(b, REQUEST_ND)
+	b = append(b, []byte(n.Info.GetSenderName())...)
+	b = append(b, []byte(key)...)
+	log.Infof("Requesting GN from %s", to)
+	n.MList.SendTCP(b, to)
+}
+
+func (n *Node) processRequestND(sender string, msg []byte) {
+	key := string(msg)
+	nd, is := n.Graph.Nodes[key]
+	if !is {
+		nd = &NeighbourDeegrees{
+			Key:        key,
+			Neighbours: make(map[string]int),
+		}
+	}
+	nd.Key = key
+	var ndJson []byte
+	ndJson, err := json.Marshal(nd)
+	if err != nil {
+		panic(err)
+	}
+	var b []byte
+	b = append(b, RESPONSE_ND)
+	b = append(b, []byte(n.Info.GetSenderName())...)
+	b = append(b, ndJson...)
+	log.Infof("Sending ND response to %s", sender)
+	n.MList.SendTCP(b, sender)
+}
+
+func (n *Node) processResponseND(msg []byte) {
+	log.Infof("Received ND response: %s", string(msg))
+	var nd NeighbourDeegrees
+	err := json.Unmarshal(msg, &nd)
+	if err != nil {
+		panic(err)
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.Graph.NDChan[nd.Key] <- msg
+}
+
+func (n *Node) RequestGraphRecon() {
+	for _, node := range n.Router.cfg.Nodes {
+		to := node.Name
+		var b []byte
+		b = append(b, REQUEST_GRAPH_RECON)
+		b = append(b, []byte(n.Info.GetSenderName())...)
+		log.Infof("Requesting graph recon from %s", to)
+		n.MList.SendTCP(b, to)
+	}
+}
+
+func (n *Node) processRequestGraphRecon() {
+	n.Graph.ReconstructGraph(n)
+}
+
 // Types of messages
 const (
 	REQUEST_CONFIG = iota
@@ -176,6 +244,9 @@ const (
 	RESPONSE_READ
 	RESPONSE_WRITE
 	REQUEST_REPAIR
+	REQUEST_ND // neighbour degrees
+	RESPONSE_ND
+	REQUEST_GRAPH_RECON
 )
 
 // TODO: find a better way to serialize/deserialize than json
