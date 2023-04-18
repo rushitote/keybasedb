@@ -45,6 +45,7 @@ func (s *APIServer) Start() error {
 	http.HandleFunc("/graph/remove-edge", s.removeEdgeHandler)
 	http.HandleFunc("/graph/get-neighbours", s.getNeighboursHandler)
 	http.HandleFunc("/graph/get-degrees", s.getDegreesBetweenHandler)
+	http.HandleFunc("/graph/get-mutual", s.getMutualVerticesHandler)
 	http.HandleFunc("/graph/recon", s.requestGraphRecon)
 
 	log.Info("Starting server at " + s.addr + ":" + s.port)
@@ -230,8 +231,26 @@ func (s *APIServer) getDegreesBetweenHandler(w http.ResponseWriter, r *http.Requ
 	w.Write([]byte(strconv.Itoa(degrees)))
 }
 
+func (s *APIServer) getMutualVerticesHandler(w http.ResponseWriter, r *http.Request) {
+	v1 := r.URL.Query().Get("v1")
+	v2 := r.URL.Query().Get("v2")
+	log.Infof("Server processing get mutual vertices request for v1=%s, v2=%s", v1, v2)
+	mutualVertices := s.node.Graph.GetMutualVertices(v1, v2)
+	mutualVerticesBytes, err := json.Marshal(mutualVertices)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(mutualVerticesBytes)
+}
+
 func (s *APIServer) requestGraphRecon(w http.ResponseWriter, r *http.Request) {
 	log.Infof("Server processing request graph recon request")
+	if s.node.Graph.numBatchedOps > 0 {
+		s.node.Graph.ApplyBatchedOps()
+	}
 	s.node.RequestGraphRecon()
 	w.WriteHeader(http.StatusOK)
 }

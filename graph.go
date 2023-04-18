@@ -131,8 +131,46 @@ func (g *Graph) FindDegreeBetween(v1 string, v2 string) int {
 	return minDist
 }
 
+func (g *Graph) GetMutualVertices(v1 string, v2 string) []string {
+	n1 := g.n.Router.GetNodesInRange(v1, 1)[0]
+	n2 := g.n.Router.GetNodesInRange(v2, 1)[0]
+
+	g.NDChan[v1] = make(chan []byte, 1)
+	g.NDChan[v2] = make(chan []byte, 1)
+
+	g.n.RequestND(n1.Name, v1)
+	g.n.RequestND(n2.Name, v2)
+
+	ndByte1 := <-g.NDChan[v1]
+	ndByte2 := <-g.NDChan[v2]
+
+	var nd1, nd2 NeighbourDeegrees
+	err := json.Unmarshal(ndByte1, &nd1)
+	if err != nil {
+		panic(err)
+	}
+	err = json.Unmarshal(ndByte2, &nd2)
+	if err != nil {
+		panic(err)
+	}
+
+	var mutualVertices []string
+	for k, v := range nd1.Neighbours {
+		if v == 1 {
+			if v2Dist, ok := nd2.Neighbours[k]; ok && v2Dist == 1 {
+				mutualVertices = append(mutualVertices, k)
+			}
+		}
+	}
+
+	delete(g.NDChan, v1)
+	delete(g.NDChan, v2)
+
+	return mutualVertices
+}
+
 func (g *Graph) ApplyBatchedOps() {
-	println("APPLYING BATCHED OPS")
+	log.Infof("APPLYING BATCHED OPS")
 	for vertex, neighbours := range g.batchedOps {
 		vNeighbours, err := g.n.Read(vertex)
 		var vn VertexNeighbours
@@ -169,4 +207,5 @@ func (g *Graph) ApplyBatchedOps() {
 	}
 	g.batchedOps = make(map[string][]string)
 	g.numBatchedOps = 0
+	log.Infof("APPLIED BATCHED OPS")
 }

@@ -5,7 +5,7 @@ import requests
 
 base_url = "http://0.0.0.0:9000"
 
-n, m = 1000, 100
+n, m = 100, 100
 
 # Generate list of vertexes
 vertexes = []
