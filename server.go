@@ -45,6 +45,7 @@ func (s *APIServer) Start() error {
 	http.HandleFunc("/graph/remove-edge", s.removeEdgeHandler)
 	http.HandleFunc("/graph/get-neighbours", s.getNeighboursHandler)
 	http.HandleFunc("/graph/get-degrees", s.getDegreesBetweenHandler)
+	http.HandleFunc("/graph/recon", s.requestGraphRecon)
 
 	log.Info("Starting server at " + s.addr + ":" + s.port)
 
@@ -129,41 +130,21 @@ func (s *APIServer) addEdgeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.node.RequestGraphRecon()
+	// s.node.RequestGraphRecon()
 
 	w.WriteHeader(http.StatusOK)
 }
 
 func (s *APIServer) addDirectedEdge(v1 string, v2 string) error {
-	v1Neighbours, err := s.read(v1)
-	var vn VertexNeighbours
-	if err != nil && err.Error() == KEY_NOT_FOUND {
-		vn = VertexNeighbours{Neighbours: []string{v2}}
-	} else if err != nil {
-		return err
-	} else {
-		err = json.Unmarshal([]byte(v1Neighbours), &vn)
-		if err != nil {
-			return err
-		}
-		found := false
-		for _, n := range vn.Neighbours {
-			if n == v2 {
-				found = true
-				break
-			}
-		}
-		if !found {
-			vn.Neighbours = append(vn.Neighbours, v2)
-		}
+	s.node.mu.Lock()
+	if _, ok := s.node.Graph.batchedOps[v1]; !ok {
+		s.node.Graph.batchedOps[v1] = make([]string, 0)
 	}
-	v1NeighboursBytes, err := json.Marshal(vn)
-	if err != nil {
-		return err
-	}
-	err = s.write(v1, string(v1NeighboursBytes))
-	if err != nil {
-		return err
+	s.node.Graph.batchedOps[v1] = append(s.node.Graph.batchedOps[v1], v2)
+	s.node.Graph.numBatchedOps++
+	s.node.mu.Unlock()
+	if s.node.Graph.numBatchedOps >= BATCH_SIZE {
+		s.node.Graph.ApplyBatchedOps()
 	}
 	return nil
 }
@@ -204,7 +185,7 @@ func (s *APIServer) removeEdgeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.node.RequestGraphRecon()
+	// s.node.RequestGraphRecon()
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -249,6 +230,12 @@ func (s *APIServer) getDegreesBetweenHandler(w http.ResponseWriter, r *http.Requ
 	w.Write([]byte(strconv.Itoa(degrees)))
 }
 
+func (s *APIServer) requestGraphRecon(w http.ResponseWriter, r *http.Request) {
+	log.Infof("Server processing request graph recon request")
+	s.node.RequestGraphRecon()
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *APIServer) Stop() {
 	s.h.Close()
 }
@@ -256,3 +243,7 @@ func (s *APIServer) Stop() {
 type VertexNeighbours struct {
 	Neighbours []string `json:"neighbours"`
 }
+
+const (
+	BATCH_SIZE = 10000
+)

@@ -118,7 +118,7 @@ func (n *Node) Read(key string) (value string, err error) {
 				}
 			}
 		case <-time.After(ReadTimeout):
-			return "", errors.New(READ_TIMEOUT)
+			return "", errors.New(READ_TIMEOUT + " for key = " + key)
 		}
 
 	}
@@ -192,8 +192,8 @@ func (n *Node) RepairHashRange(otherNode string, hashRange HashRange) (err error
 }
 
 const (
-	ReadTimeout  = 3 * time.Second
-	WriteTimeout = 3 * time.Second
+	ReadTimeout  = 10 * time.Second
+	WriteTimeout = 10 * time.Second
 )
 
 /*
