@@ -56,7 +56,7 @@ func (e *Engine) Delete(key string) {
 	})
 }
 
-func (e *Engine) Stream(f func (key string, value string) error) {
+func (e *Engine) Stream(f func(key string, value string) error) {
 	e.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)

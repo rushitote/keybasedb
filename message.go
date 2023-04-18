@@ -84,7 +84,7 @@ func (n *Node) processRequestRead(sender string, msg []byte) {
 		panic(err)
 	}
 	b = append(b, respMsg...)
-	log.Infof("Sending read response of key=%s and value=%s to %s", key, value, sender)
+	// log.Infof("Sending read response of key=%s and value=%s to %s", key, value, sender)
 	n.MList.SendTCP(b, sender)
 }
 

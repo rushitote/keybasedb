@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 
@@ -47,6 +49,8 @@ func (s *APIServer) Start() error {
 	http.HandleFunc("/graph/get-degrees", s.getDegreesBetweenHandler)
 	http.HandleFunc("/graph/get-mutual", s.getMutualVerticesHandler)
 	http.HandleFunc("/graph/recon", s.requestGraphRecon)
+	http.HandleFunc("/image/store", s.storeImageHandler)
+	http.HandleFunc("/image/get", s.getImageHandler)
 
 	log.Info("Starting server at " + s.addr + ":" + s.port)
 
@@ -253,6 +257,54 @@ func (s *APIServer) requestGraphRecon(w http.ResponseWriter, r *http.Request) {
 	}
 	s.node.RequestGraphRecon()
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *APIServer) storeImageHandler(w http.ResponseWriter, r *http.Request) {
+	log.Infof("Server processing store image request")
+	buf, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	name := r.URL.Query().Get("name")
+
+	bufstr := base64.StdEncoding.EncodeToString(buf)
+
+	err = s.write(name, bufstr)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *APIServer) getImageHandler(w http.ResponseWriter, r *http.Request) {
+	log.Infof("Server processing get image request")
+	name := r.URL.Query().Get("name")
+	img, err := s.read(name)
+	if err != nil {
+		if err.Error() == KEY_NOT_FOUND {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("[]"))
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	imgBytes, err := base64.StdEncoding.DecodeString(img)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.WriteHeader(http.StatusOK)
+	w.Write(imgBytes)
 }
 
 func (s *APIServer) Stop() {
