@@ -31,11 +31,11 @@ func (g *Graph) ReconstructGraph(n *Node) {
 	g.cache = make(map[string]string)
 	g.batchedOps = make(map[string][]string)
 	g.numBatchedOps = 0
+	g.cache = make(map[string]string)
 	n.Engine.Stream(func(key string, value string) error {
 		g.Nodes[key] = ReconstructNode(key, n, g.MaxDeg)
 		return nil
 	})
-	g.cache = make(map[string]string)
 	log.Infof("RECONSTRUCTED GRAPH")
 }
 
